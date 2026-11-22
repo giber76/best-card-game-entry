@@ -9,6 +9,8 @@ import {
   VIEW_HEIGHT,
   CARD_WIDTH,
   CARD_HEIGHT,
+  TRICK_CARD_WIDTH,
+  TRICK_CARD_HEIGHT,
   CARD_RADIUS,
   OPPONENT_CARD_WIDTH,
   OPPONENT_CARD_HEIGHT,
@@ -47,21 +49,36 @@ function easeOutCubic(t) {
 
 // One suit symbol, drawn as a vector shape centred at (cx, cy) with the
 // given size (the symbol's height). Flame, drop, leaf and gem are distinct
-// silhouettes, so colour is never the only difference between suits.
-export function drawSuitSymbol(ctx, shape, cx, cy, size, colour) {
+// silhouettes, so colour is never the only difference between suits. The
+// flame leans with a concave flick edge and carries a lighter inner flame,
+// so it never reads as the drop or the leaf at thumbnail size. Pass
+// inner=false for the big faint background emblems, where a bright core
+// would fight the text drawn over them.
+export function drawSuitSymbol(ctx, shape, cx, cy, size, colour, inner = true) {
   const half = size / 2;
   ctx.save();
   ctx.fillStyle = colour;
   ctx.strokeStyle = colour;
   ctx.lineJoin = 'round';
+  let filled = false;
   ctx.beginPath();
   if (shape === 'flame') {
-    ctx.moveTo(cx, cy - half);
-    ctx.bezierCurveTo(cx + half * 0.9, cy - half * 0.2, cx + half * 0.7, cy + half * 0.55, cx, cy + half);
-    ctx.bezierCurveTo(cx - half * 0.7, cy + half * 0.55, cx - half * 0.9, cy - half * 0.2, cx, cy - half);
-    ctx.moveTo(cx, cy + half * 0.55);
-    ctx.bezierCurveTo(cx + half * 0.35, cy + half * 0.1, cx + half * 0.2, cy - half * 0.35, cx, cy - half * 0.45);
-    ctx.bezierCurveTo(cx - half * 0.2, cy - half * 0.35, cx - half * 0.35, cy + half * 0.1, cx, cy + half * 0.55);
+    // Outer: a leaning teardrop — tip flicked right, left edge concave.
+    ctx.moveTo(cx + half * 0.15, cy - half);
+    ctx.bezierCurveTo(cx + half * 0.95, cy - half * 0.3, cx + half * 0.8, cy + half * 0.5, cx, cy + half);
+    ctx.bezierCurveTo(cx - half * 0.75, cy + half * 0.5, cx - half * 0.9, cy - half * 0.1, cx - half * 0.45, cy - half * 0.45);
+    ctx.bezierCurveTo(cx - half * 0.2, cy - half * 0.75, cx, cy - half * 0.9, cx + half * 0.15, cy - half);
+    ctx.fill();
+    filled = true;
+    if (inner) {
+      // Inner flame: smaller, lighter, low in the body.
+      ctx.fillStyle = '#ffd97a';
+      ctx.beginPath();
+      ctx.moveTo(cx + half * 0.05, cy - half * 0.15);
+      ctx.bezierCurveTo(cx + half * 0.45, cy + half * 0.1, cx + half * 0.35, cy + half * 0.45, cx, cy + half * 0.55);
+      ctx.bezierCurveTo(cx - half * 0.35, cy + half * 0.45, cx - half * 0.45, cy + half * 0.1, cx + half * 0.05, cy - half * 0.15);
+      ctx.fill();
+    }
   } else if (shape === 'drop') {
     ctx.moveTo(cx, cy - half);
     ctx.bezierCurveTo(cx + half * 0.85, cy - half * 0.1, cx + half * 0.75, cy + half * 0.6, cx, cy + half);
@@ -86,13 +103,17 @@ export function drawSuitSymbol(ctx, shape, cx, cy, size, colour) {
     ctx.moveTo(cx, cy - half);
     ctx.lineTo(cx, cy + half * 0.4);
   }
-  ctx.fill();
+  if (!filled) ctx.fill();
   ctx.restore();
 }
 
 // A face-up card: ivory face, suit-coloured border, big value, big centre
-// symbol, and the suit's power word along the bottom.
-export function drawCardFace(ctx, card, x, y, width, height, hovered) {
+// symbol, and the suit's power word along the bottom. In mini mode (the
+// "Rook's last plays" history cards, 48x68) the rotated bottom-right value,
+// the small top symbol and the power word are dropped: at that size the
+// rotated digit reads as a wrong number and the power word is a smudge.
+// A hovered card also gets a gold glow ring, on top of the lift.
+export function drawCardFace(ctx, card, x, y, width, height, hovered, mini = false) {
   const suit = suitById(card.suit);
   const lift = hovered ? -10 : 0;
   const top = y + lift;
@@ -112,28 +133,43 @@ export function drawCardFace(ctx, card, x, y, width, height, hovered) {
   roundRectPath(ctx, x + 5, top + 5, width - 10, height - 10, CARD_RADIUS - 4);
   ctx.stroke();
 
-  // Value, top-left and bottom-right (upside down).
+  // Value, top-left. (The upside-down bottom-right value is skipped in
+  // mini mode: at 48px it reads as a wrong digit, 9 as 6.)
   ctx.fillStyle = suit.colourDark;
-  ctx.font = `bold ${Math.round(width * 0.3)}px Georgia, serif`;
+  ctx.font = `bold ${Math.round(width * 0.32)}px Georgia, serif`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillText(String(card.value), x + 10, top + 8);
-  ctx.save();
-  ctx.translate(x + width - 10, top + height - 8);
-  ctx.rotate(Math.PI);
-  ctx.fillText(String(card.value), 0, 0);
-  ctx.restore();
+  if (!mini) {
+    ctx.save();
+    ctx.translate(x + width - 10, top + height - 8);
+    ctx.rotate(Math.PI);
+    ctx.fillText(String(card.value), 0, 0);
+    ctx.restore();
 
-  // Small symbol beside the top value, big symbol in the centre.
-  drawSuitSymbol(ctx, suit.shape, x + width - 22, top + 26, 22, suit.colour);
+    // Small symbol beside the top value, big symbol in the centre.
+    drawSuitSymbol(ctx, suit.shape, x + width - 22, top + 26, 22, suit.colour);
+  }
   drawSuitSymbol(ctx, suit.shape, x + width / 2, top + height * 0.48, Math.round(width * 0.52), suit.colour);
 
-  // Power word along the bottom.
-  ctx.fillStyle = suit.colourDark;
-  ctx.font = `bold ${Math.round(width * 0.11)}px Georgia, serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillText(suit.power.toUpperCase(), x + width / 2, top + height - 12);
+  // Power word along the bottom (full-size cards only).
+  if (!mini) {
+    ctx.fillStyle = suit.colourDark;
+    ctx.font = `bold ${Math.round(width * 0.12)}px Georgia, serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(suit.power.toUpperCase(), x + width / 2, top + height - 12);
+  }
+
+  // Gold glow ring around a hovered card, outside the face.
+  if (hovered) {
+    ctx.shadowColor = GOLD;
+    ctx.shadowBlur = 20;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = GOLD;
+    roundRectPath(ctx, x - 5, top - 5, width + 10, height + 10, CARD_RADIUS + 5);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -205,7 +241,7 @@ function drawFelt(ctx) {
   ctx.beginPath();
   ctx.arc(VIEW_WIDTH / 2, VIEW_HEIGHT / 2, 118, 0, Math.PI * 2);
   ctx.stroke();
-  drawSuitSymbol(ctx, 'flame', VIEW_WIDTH / 2, VIEW_HEIGHT / 2, 72, 'rgba(232,182,76,0.18)');
+  drawSuitSymbol(ctx, 'flame', VIEW_WIDTH / 2, VIEW_HEIGHT / 2, 72, 'rgba(232,182,76,0.18)', false);
 }
 
 /**
@@ -231,9 +267,10 @@ function drawBanner(ctx, banner, now) {
   const fade = age > banner.duration - 300 ? 1 - (age - (banner.duration - 300)) / 300 : 1;
   ctx.save();
   ctx.globalAlpha = Math.max(0, fade);
-  // Pill only, centred between the intent line (y 222) and the trick cards
-  // (y 296); the outcome's detail is in the result line under the cards.
-  ctx.translate(VIEW_WIDTH / 2, 256);
+  // Pill centred between the intent line (y 214) and the trick cards
+  // (y 296); the banner's explanation rides under it as a second line, so
+  // the SURGE/MIRROR/TIE reason is visible, not only its name.
+  ctx.translate(VIEW_WIDTH / 2, 244);
   ctx.scale(pop, pop);
   ctx.font = 'bold 34px Georgia, serif';
   const width = ctx.measureText(banner.text).width + 56;
@@ -244,6 +281,13 @@ function drawBanner(ctx, banner, now) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(banner.text, 0, 2);
+  if (banner.sub) {
+    ctx.font = 'italic 14px Georgia, serif';
+    ctx.fillStyle = '#d8e6dc';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(banner.sub, 0, 42);
+  }
   ctx.restore();
 }
 
@@ -294,7 +338,7 @@ export function drawPlayTable(ctx, state, now) {
   ctx.font = 'italic 17px Georgia, serif';
   ctx.fillStyle = '#d8e6dc';
   ctx.textAlign = 'center';
-  ctx.fillText(state.intent, VIEW_WIDTH / 2, 222);
+  ctx.fillText(state.intent, VIEW_WIDTH / 2, 214);
   ctx.restore();
 
   // Rook's last plays, top right, face-up and small.
@@ -305,7 +349,7 @@ export function drawPlayTable(ctx, state, now) {
   ctx.fillText("ROOK'S LAST PLAYS", 1244, 44);
   for (let index = 0; index < state.opponentHistory.length; index += 1) {
     const card = state.opponentHistory[index];
-    drawCardFace(ctx, card, 1244 - (index + 1) * 56 + 8, 56, 48, 68, false);
+    drawCardFace(ctx, card, 1244 - (index + 1) * 56 + 8, 56, 48, 68, false, true);
   }
   // Pot indicator, under the last plays — never under the banner or the hand.
   if (state.pot > 1) {
@@ -316,10 +360,13 @@ export function drawPlayTable(ctx, state, now) {
   }
   ctx.restore();
 
-  // The trick: the two played cards, the opponent's flipping in.
+  // The trick: the two played cards, the opponent's flipping in. Trick
+  // cards are bigger than hand cards (140x196) so the duel's centre reads
+  // at contact-sheet size; the dead middle is closed by pulling the trick
+  // up and the player's hand down to meet it.
   if (state.trick) {
     const slotY = 296;
-    const playerSlotX = VIEW_WIDTH / 2 - CARD_WIDTH - 18;
+    const playerSlotX = VIEW_WIDTH / 2 - TRICK_CARD_WIDTH - 18;
     const opponentSlotX = VIEW_WIDTH / 2 + 18;
     if (state.trick.playerCard) {
       const anim = state.playAnim;
@@ -327,9 +374,9 @@ export function drawPlayTable(ctx, state, now) {
         const t = easeOutCubic((now - anim.start) / (anim.end - anim.start));
         const x = anim.fromX + (playerSlotX - anim.fromX) * t;
         const y = anim.fromY + (slotY - anim.fromY) * t;
-        drawCardFace(ctx, state.trick.playerCard, x, y, CARD_WIDTH, CARD_HEIGHT, false);
+        drawCardFace(ctx, state.trick.playerCard, x, y, TRICK_CARD_WIDTH, TRICK_CARD_HEIGHT, false);
       } else {
-        drawCardFace(ctx, state.trick.playerCard, playerSlotX, slotY, CARD_WIDTH, CARD_HEIGHT, false);
+        drawCardFace(ctx, state.trick.playerCard, playerSlotX, slotY, TRICK_CARD_WIDTH, TRICK_CARD_HEIGHT, false);
       }
     }
     if (state.trick.opponentCard) {
@@ -338,16 +385,16 @@ export function drawPlayTable(ctx, state, now) {
         const progress = (now - flip.start) / (flip.end - flip.start);
         const scale = Math.abs(Math.cos(progress * Math.PI));
         ctx.save();
-        ctx.translate(opponentSlotX + CARD_WIDTH / 2, slotY + CARD_HEIGHT / 2);
+        ctx.translate(opponentSlotX + TRICK_CARD_WIDTH / 2, slotY + TRICK_CARD_HEIGHT / 2);
         ctx.scale(Math.max(0.08, scale), 1);
         if (progress < 0.5) {
-          drawCardBack(ctx, -CARD_WIDTH / 2, -CARD_HEIGHT / 2, CARD_WIDTH, CARD_HEIGHT);
+          drawCardBack(ctx, -TRICK_CARD_WIDTH / 2, -TRICK_CARD_HEIGHT / 2, TRICK_CARD_WIDTH, TRICK_CARD_HEIGHT);
         } else {
-          drawCardFace(ctx, state.trick.opponentCard, -CARD_WIDTH / 2, -CARD_HEIGHT / 2, CARD_WIDTH, CARD_HEIGHT, false);
+          drawCardFace(ctx, state.trick.opponentCard, -TRICK_CARD_WIDTH / 2, -TRICK_CARD_HEIGHT / 2, TRICK_CARD_WIDTH, TRICK_CARD_HEIGHT, false);
         }
         ctx.restore();
       } else {
-        drawCardFace(ctx, state.trick.opponentCard, opponentSlotX, slotY, CARD_WIDTH, CARD_HEIGHT, false);
+        drawCardFace(ctx, state.trick.opponentCard, opponentSlotX, slotY, TRICK_CARD_WIDTH, TRICK_CARD_HEIGHT, false);
       }
     }
     if (state.trick.resultText) {
@@ -355,7 +402,7 @@ export function drawPlayTable(ctx, state, now) {
       ctx.font = 'bold 20px Georgia, serif';
       ctx.fillStyle = IVORY;
       ctx.textAlign = 'center';
-      ctx.fillText(state.trick.resultText, VIEW_WIDTH / 2, slotY + CARD_HEIGHT + 34);
+      ctx.fillText(state.trick.resultText, VIEW_WIDTH / 2, slotY + TRICK_CARD_HEIGHT + 26);
       ctx.restore();
     }
   } else {
@@ -375,26 +422,26 @@ export function drawPlayTable(ctx, state, now) {
   ctx.font = 'bold 22px Georgia, serif';
   ctx.fillStyle = IVORY;
   ctx.textAlign = 'left';
-  ctx.fillText('YOU', 36, 516);
-  drawLifeBar(ctx, 36, 530, 300, state.playerLife, 'LIFE', '#3da35d');
+  ctx.fillText('YOU', 36, 514);
+  drawLifeBar(ctx, 36, 526, 300, state.playerLife, 'LIFE', '#3da35d');
   if (state.playerShield > 0) {
     ctx.font = 'bold 14px Georgia, serif';
     ctx.fillStyle = '#f2cd7a';
-    ctx.fillText(`SHIELD ${state.playerShield}`, 380, 548);
+    ctx.fillText(`SHIELD ${state.playerShield}`, 380, 544);
   }
   ctx.font = 'bold 18px Georgia, serif';
   ctx.textAlign = 'right';
   ctx.fillStyle = GOLD;
-  ctx.fillText(`SCORE ${state.score}`, 1244, 516);
+  ctx.fillText(`SCORE ${state.score}`, 1244, 514);
   ctx.fillStyle = IVORY;
   ctx.font = '16px Georgia, serif';
-  ctx.fillText(`TRICK ${state.trickNumber}  ·  DECK ${state.deckCount}`, 1244, 542);
+  ctx.fillText(`TRICK ${state.trickNumber}  ·  DECK ${state.deckCount}`, 1244, 540);
   ctx.restore();
 
   // Player hand, fanned slightly, hovered card lifted.
   const layout = handLayout(state.playerHand.length, CARD_WIDTH, 16, 1200);
   const handX = layout.x;
-  const handY = 556;
+  const handY = 548;
   for (let index = 0; index < state.playerHand.length; index += 1) {
     const card = state.playerHand[index];
     const hovered = state.hoverIndex === index;
@@ -409,6 +456,9 @@ export function drawTitleScreen(ctx, state, now) {
   drawFelt(ctx);
   const pulse = 0.75 + 0.25 * Math.sin(now / 450);
   ctx.save();
+  // A large flame emblem behind the title — Rook's mark, faint so the name
+  // stays readable (no bright inner core on a background emblem).
+  drawSuitSymbol(ctx, 'flame', VIEW_WIDTH / 2, 108, 170, 'rgba(232,182,76,0.20)', false);
   ctx.textAlign = 'center';
   ctx.fillStyle = GOLD;
   ctx.font = 'bold 96px Georgia, serif';
@@ -417,17 +467,19 @@ export function drawTitleScreen(ctx, state, now) {
   ctx.font = 'italic 24px Georgia, serif';
   ctx.fillText('A duel of four suits — outplay Rook, Warden of the Ember Court.', VIEW_WIDTH / 2, 196);
 
-  // A fan of one card per suit.
+  // A fan of one card per suit, bigger than v1 so the suits read at a glance.
   const fanSuits = ['ember', 'tide', 'gale', 'stone'];
   const fanValues = [9, 7, 8, 6];
+  const fanWidth = 136;
+  const fanHeight = 190;
   for (let index = 0; index < fanSuits.length; index += 1) {
     const angle = (index - 1.5) * 0.14;
-    const x = VIEW_WIDTH / 2 + (index - 1.5) * 128 - CARD_WIDTH / 2;
+    const x = VIEW_WIDTH / 2 + (index - 1.5) * 128 - fanWidth / 2;
     const y = 250 + Math.abs(index - 1.5) * 14;
     ctx.save();
-    ctx.translate(x + CARD_WIDTH / 2, y + CARD_HEIGHT / 2);
+    ctx.translate(x + fanWidth / 2, y + fanHeight / 2);
     ctx.rotate(angle);
-    drawCardFace(ctx, { suit: fanSuits[index], value: fanValues[index], id: 0 }, -CARD_WIDTH / 2, -CARD_HEIGHT / 2, CARD_WIDTH, CARD_HEIGHT, false);
+    drawCardFace(ctx, { suit: fanSuits[index], value: fanValues[index], id: 0 }, -fanWidth / 2, -fanHeight / 2, fanWidth, fanHeight, false);
     ctx.restore();
   }
 
@@ -441,29 +493,70 @@ export function drawTitleScreen(ctx, state, now) {
   ctx.fillText('Higher card wins the trick · A tie doubles the pot · Same suit twice: SURGE · Same suit as Rook: MIRROR', VIEW_WIDTH / 2, 528);
   ctx.fillText('Ember scorches · Tide mends · Gale draws · Stone shields — each hand is a decision.', VIEW_WIDTH / 2, 556);
 
+  // The facts strip: what the duel is, in one line.
+  ctx.font = 'bold 18px Georgia, serif';
+  ctx.fillStyle = GOLD;
+  ctx.fillText('36 CARDS · 4 SUITS · 20 LIFE', VIEW_WIDTH / 2, 584);
+
   // Suit legend.
   let legendX = VIEW_WIDTH / 2 - 330;
   ctx.font = 'bold 15px Georgia, serif';
   for (let index = 0; index < fanSuits.length; index += 1) {
     const suit = suitById(fanSuits[index]);
-    drawSuitSymbol(ctx, suit.shape, legendX + 10, 606, 20, suit.colour);
+    drawSuitSymbol(ctx, suit.shape, legendX + 10, 618, 20, suit.colour);
     ctx.fillStyle = IVORY;
     ctx.textAlign = 'left';
-    ctx.fillText(`${suit.name} — ${suit.power}`, legendX + 26, 611);
+    ctx.fillText(`${suit.name} — ${suit.power}`, legendX + 26, 623);
     legendX += 168;
   }
   ctx.restore();
 }
 
-// The end screens: a win lands with a gold flourish, a loss with a dark one.
+// The end screens: the play table stays visible underneath (both hands and
+// the final trick are still in the state), dimmed by an overlay, so the shot
+// shows a game that was played — not blank felt. A win lands with a gold
+// flourish and deterministic ember confetti; a loss with a dark one and the
+// player's hand dimmed further.
 export function drawEndScreen(ctx, state, now, won) {
-  drawFelt(ctx);
+  // The table first, banner and intent hidden so they cannot collide with
+  // VICTORY/DEFEAT: the intent line would show through the big title.
+  const savedBanner = state.banner;
+  const savedIntent = state.intent;
+  state.banner = null;
+  state.intent = '';
+  drawPlayTable(ctx, state, now);
+  state.banner = savedBanner;
+  state.intent = savedIntent;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+  if (!won) {
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(0, 540, VIEW_WIDTH, VIEW_HEIGHT - 540);
+  }
+  ctx.restore();
   if (won) {
     const burst = ctx.createRadialGradient(VIEW_WIDTH / 2, 300, 20, VIEW_WIDTH / 2, 300, 420);
     burst.addColorStop(0, 'rgba(232,182,76,0.5)');
     burst.addColorStop(1, 'rgba(232,182,76,0)');
     ctx.fillStyle = burst;
     ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+    // Deterministic ember confetti: a fixed-seed LCG, so the same scene
+    // renders the same dots every time.
+    let seed = 20261123;
+    const next = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff;
+    };
+    const confetti = ['#e8b64c', '#ff8a70', '#f2cd7a', '#e2483a', '#ffd97a'];
+    ctx.save();
+    for (let index = 0; index < 56; index += 1) {
+      ctx.fillStyle = confetti[index % confetti.length];
+      ctx.beginPath();
+      ctx.arc(next() * VIEW_WIDTH, next() * VIEW_HEIGHT, 2.5 + next() * 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   } else {
     const shade = ctx.createRadialGradient(VIEW_WIDTH / 2, 300, 20, VIEW_WIDTH / 2, 300, 420);
     shade.addColorStop(0, 'rgba(120,20,16,0.45)');
@@ -482,6 +575,11 @@ export function drawEndScreen(ctx, state, now, won) {
     won ? 'The court is yours — Rook bows to a better hand.' : 'Rook keeps the court — the embers were not yours today.',
     VIEW_WIDTH / 2, 268,
   );
+  // A dark panel behind the stats block: the trick cards sit right behind
+  // these lines, and gold/white text on ivory cards is unreadable without it.
+  ctx.fillStyle = 'rgba(8,18,12,0.62)';
+  roundRectPath(ctx, 300, 315, 680, 185, 16);
+  ctx.fill();
   ctx.font = 'bold 30px Georgia, serif';
   ctx.fillStyle = GOLD;
   ctx.fillText(`FINAL SCORE ${state.score}`, VIEW_WIDTH / 2, 350);

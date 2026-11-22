@@ -56,7 +56,7 @@ function toLogical(clientX, clientY) {
 // Same layout the renderer uses, so clicks land on the cards drawn.
 function handCardPosition(index, count) {
   const layout = handLayout(count, CARD_WIDTH, 16, 1200);
-  return { x: layout.x + index * (CARD_WIDTH + layout.gap), y: 556 };
+  return { x: layout.x + index * (CARD_WIDTH + layout.gap), y: 548 };
 }
 
 function announce(text) {

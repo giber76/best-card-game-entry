@@ -3,6 +3,8 @@
 // read its plan and counter it (criterion 2: an opponent whose choices you can
 // read and counter). Rook never sees the player's card before choosing its own.
 
+import { suitById } from './suits.js';
+
 export const MOOD_CAUTIOUS = 'cautious';
 export const MOOD_BOLD = 'bold';
 export const MOOD_DESPERATE = 'desperate';
@@ -26,7 +28,19 @@ export function rookIntent(hand, ownLife, foeLife) {
   if (suits.stone >= 2 && foeLife <= 10) return 'Rook raises its guard… Stone is near.';
   if (ownLife <= 7) return 'Rook is cornered… it will spend anything to survive.';
   if (foeLife <= 8) return 'Rook smells blood… it will press the attack.';
-  return 'Rook studies your hand…';
+  // Specific, counterable fallback: name Rook's most common suit and the
+  // power it brings, instead of a vague "studies your hand".
+  const counts = countSuits(hand);
+  let bestSuit = 'ember';
+  let bestCount = -1;
+  for (const suitId of ['ember', 'tide', 'gale', 'stone']) {
+    if (counts[suitId] > bestCount) {
+      bestCount = counts[suitId];
+      bestSuit = suitId;
+    }
+  }
+  const suit = suitById(bestSuit);
+  return `Rook holds mostly ${suit.name} — expect ${suit.power}.`;
 }
 
 // Count how many cards of each suit a hand holds.

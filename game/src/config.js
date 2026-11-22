@@ -13,8 +13,10 @@ export const WIN_SCORE_TRICK = 10;
 export const WIN_SCORE_LIFE = 5;
 
 // Card layout on the table.
-export const CARD_WIDTH = 110;
-export const CARD_HEIGHT = 154;
+export const CARD_WIDTH = 124;
+export const CARD_HEIGHT = 168;
+export const TRICK_CARD_WIDTH = 140;
+export const TRICK_CARD_HEIGHT = 196;
 export const CARD_RADIUS = 12;
 export const HAND_GAP = 16;
 export const OPPONENT_CARD_WIDTH = 76;

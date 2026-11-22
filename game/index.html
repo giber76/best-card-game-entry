@@ -1,0 +1,26 @@
+<!-- Ember Court: a 36-card duel (4 suits x 1-9) against Rook, the Ember Warden.
+Higher card wins the trick, damage is the margin, ties double the pot.
+Ember scorches +2, Tide mends 2, Gale draws a card, Stone shields 3.
+Same suit twice SURGES (power doubles); matching Rook's suit MIRRORS (both
+powers cancel). Rook shows its intent and its last plays, so every hand is a
+readable decision. Stakes rise from trick 10, so no duel stalemates. -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ember Court — a duel of four suits</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0a2e1e; }
+  body { display: flex; align-items: center; justify-content: center; }
+  #game { display: block; touch-action: none; cursor: pointer; }
+  /* Read aloud, never shown: the status line screen readers announce. */
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Ember Court: a card duel. Play a card to win the trick; higher card wins, ties double the pot."></canvas>
+<p id="status" role="status" aria-live="polite"></p>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
